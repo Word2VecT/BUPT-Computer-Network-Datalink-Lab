@@ -9,11 +9,6 @@
 /* sequence or ack numbers */
 typedef unsigned char seq_nr;
 
-/* packet definition */
-// typedef struct {
-//     unsigned char data[PKT_LEN];
-// } packet;
-
 /* frame_kind definition */
 typedef enum { FRAME_DATA,
     FRAME_ACK,
