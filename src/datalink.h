@@ -14,13 +14,6 @@ typedef enum { FRAME_DATA,
     FRAME_ACK,
     FRAME_NAK } frame_kind;
 
-/* Macro inc is expanded in-line: increment k circularly */
-#define inc(k)         \
-    if ((k) < MAX_SEQ) \
-        (k)++;         \
-    else               \
-        (k) = 0
-
 typedef struct { /* frames are transported in this layer */
     unsigned char kind; /* what kind of frame is it? */
     seq_nr seq; /* sequence number */
@@ -31,7 +24,7 @@ typedef struct { /* frames are transported in this layer */
 
 typedef struct {
     unsigned char buf[PKT_LEN];
-    unsigned long long length;
+    size_t length;
 } buffer;
 /*
  * END
@@ -52,6 +45,13 @@ static void put_frame_crc(unsigned char* frame, int len);
 static void put_frame_naive(unsigned char* frame);
 static void send_data_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expected, buffer buffer[]);
 // NOLINTEND(readability-identifier-length)
+
+/* Macro inc is expanded in-line: increment k circularly */
+#define inc(k)         \
+    if ((k) < MAX_SEQ) \
+        (k)++;         \
+    else               \
+        (k) = 0
 /*
  * datalink.h END
  */
