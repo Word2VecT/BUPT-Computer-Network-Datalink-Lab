@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c99")
 
-target("Lab 1")
+target("datalink")
     set_kind("binary")
     add_files("src/*.c")
     set_optimize("fastest")

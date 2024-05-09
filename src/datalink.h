@@ -25,7 +25,7 @@ typedef struct { /* frames are transported in this layer */
 typedef struct {
     unsigned char buf[PKT_LEN];
     size_t length;
-} buffer;
+} packet;
 /*
  * END
  */
@@ -35,15 +35,14 @@ typedef struct {
 enum {
     MAX_SEQ = 31,
     ACK_TIMER = 280,
-    LOW_DATA_TIMER = 3500,
-    HIGH_DATA_TIMER = 5000
+    DATA_TIMER = 3500
 };
 #define NR_BUFS ((MAX_SEQ + 1) / 2)
 // NOLINTBEGIN(readability-identifier-length)
 static bool between(seq_nr a, seq_nr b, seq_nr c);
 static void put_frame_crc(unsigned char* frame, int len);
-static void put_frame_naive(unsigned char* frame);
-static void send_data_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expected, buffer buffer[]);
+static void put_frame_no_crc(unsigned char* frame);
+static void send_data_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expected, packet packet[]);
 // NOLINTEND(readability-identifier-length)
 
 /* Macro inc is expanded in-line: increment k circularly */
@@ -59,16 +58,16 @@ static void send_data_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expe
 /*
     DATA Frame
     +=========+========+========+===============+========+
-    | KIND(1) | SEQ(1) | ACK(1) | DATA(240~256) | CRC(4) |
+    | KIND(1) | ACK(1) | CRC(1) | DATA(240~256) | CRC(4) |
     +=========+========+========+===============+========+
 
     ACK Frame
-    +=========+========+========+
-    | KIND(1) | ACK(1) | CRC(4) |
-    +=========+========+========+
+    +=========+========+
+    | KIND(1) | ACK(1) |
+    +=========+========+
 
     NAK Frame
-    +=========+========+========+
-    | KIND(1) | ACK(1) | CRC(4) |
-    +=========+========+========+
+    +=========+========+
+    | KIND(1) | ACK(1) |
+    +=========+========+
 */
