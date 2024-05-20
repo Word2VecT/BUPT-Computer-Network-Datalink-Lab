@@ -10,19 +10,14 @@ static bool between(seq_nr a, seq_nr b, seq_nr c)
     return ((a <= b) && (b < c)) || ((c < a) && (a <= b)) || ((b < c) && (c < a));
 }
 
-static void put_frame_crc(unsigned char* frame, int len)
+static void put_frame(unsigned char* frame, int len)
 {
     *(unsigned int*)(frame + len) = crc32(frame, len);
     send_frame(frame, len + 4);
     phl_ready = false;
 }
 
-static void put_frame_no_crc(unsigned char* frame)
-{
-    send_frame(frame, 3);
-}
-
-static void send_data_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expected, packet packet[])
+static void send_datalink_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expected, packet packet[])
 {
     /* Construct and send a data, ack, or nak frame */
     frame s; /* scratch variable */
@@ -40,12 +35,10 @@ static void send_data_frame(unsigned char fk, seq_nr frame_nr, seq_nr frame_expe
         no_nak = false; /* one nak per frame. please */
     }
     if (fk == FRAME_DATA) {
-        put_frame_crc((unsigned char*)&s, 3 + PKT_LEN);
-    } else {
-        put_frame_no_crc((unsigned char*)&s); /* transmit the frame */
-    }
-    if (fk == FRAME_DATA) {
+        put_frame((unsigned char*)&s, 3 + PKT_LEN);
         start_timer(frame_nr % NR_BUFS, DATA_TIMER);
+    } else {
+        put_frame((unsigned char*)&s, 2); /* transmit the frame */
     }
     stop_ack_timer(); /* no need for separate ack frame */
 }
@@ -82,7 +75,7 @@ int main(int argc, char** argv)
         case NETWORK_LAYER_READY: /* accept, save, and transimit a new frame */
             nbuffered++; /* expand the window */
             out_buf[next_frame_to_send % NR_BUFS].length = get_packet(out_buf[next_frame_to_send % NR_BUFS].buf); /* fetch new packet */
-            send_data_frame((unsigned char)FRAME_DATA, next_frame_to_send, frame_expected, out_buf); /* transmit the frame */
+            send_datalink_frame((unsigned char)FRAME_DATA, next_frame_to_send, frame_expected, out_buf); /* transmit the frame */
             inc(next_frame_to_send); /* advance upper windows edge */
             break;
 
@@ -92,10 +85,10 @@ int main(int argc, char** argv)
 
         case FRAME_RECEIVED: /* a data or control frame has arrived */
             len = recv_frame((unsigned char*)&r, sizeof r); /* fetch incoming frame from physical layer */
-            if ((len < 5 && len != 3) || (len > 5 && crc32((unsigned char*)&r, len) != 0)) {
+            if (len < 5 || crc32((unsigned char*)&r, len) != 0) {
                 dbg_event("****RECEIVER ERROR, BAD CRC CHECKSUM****\n");
                 if (no_nak) {
-                    send_data_frame((unsigned char)FRAME_NAK, 0, frame_expected, out_buf);
+                    send_datalink_frame((unsigned char)FRAME_NAK, 0, frame_expected, out_buf);
                 }
                 break;
             }
@@ -108,7 +101,7 @@ int main(int argc, char** argv)
                 /* An undamaged frame has arrived */
                 dbg_frame("Recv DATA %d %d, ID %d\n", r.seq, r.ack, *(short*)r.data);
                 if ((r.seq != frame_expected) && no_nak) {
-                    send_data_frame((unsigned char)FRAME_NAK, 0, frame_expected, out_buf);
+                    send_datalink_frame((unsigned char)FRAME_NAK, 0, frame_expected, out_buf);
                 }
                 if (between(frame_expected, r.seq, too_far) && (arrived[r.seq % NR_BUFS] == false)) {
                     arrived[r.seq % NR_BUFS] = true; /* mark packet as full */
@@ -129,7 +122,7 @@ int main(int argc, char** argv)
             if (r.kind == FRAME_NAK) {
                 dbg_frame("Recv NAK %d\n", r.ack);
                 if (between(ack_expected, (r.ack + 1) % (MAX_SEQ + 1), next_frame_to_send)) {
-                    send_data_frame((unsigned char)FRAME_DATA, (r.ack + 1) % (MAX_SEQ + 1), frame_expected, out_buf);
+                    send_datalink_frame((unsigned char)FRAME_DATA, (r.ack + 1) % (MAX_SEQ + 1), frame_expected, out_buf);
                 }
             }
 
@@ -145,12 +138,12 @@ int main(int argc, char** argv)
             if (!between(ack_expected, arg, next_frame_to_send)) {
                 arg += NR_BUFS;
             }
-            send_data_frame((unsigned char)FRAME_DATA, arg, frame_expected, out_buf); /* we timed out */
+            send_datalink_frame((unsigned char)FRAME_DATA, arg, frame_expected, out_buf); /* we timed out */
             break;
 
         case ACK_TIMEOUT:
             dbg_event("----  ACK %d timeout\n", frame_expected);
-            send_data_frame((unsigned char)FRAME_ACK, 0, frame_expected, out_buf); /* ack timer expired; send ack */
+            send_datalink_frame((unsigned char)FRAME_ACK, 0, frame_expected, out_buf); /* ack timer expired; send ack */
             break;
 
         default:
